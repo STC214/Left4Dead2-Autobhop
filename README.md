@@ -1,5 +1,9 @@
 # Left4Dead2-Autobhop / 求生之路 2 自动连跳外置工具
 
+> **重要提示：不推荐在开启 VAC 的服务器中使用本工具，否则封号自负。**
+>
+> **Important: Do not use this tool on VAC-enabled servers. You are responsible for any account ban or other consequence.**
+
 这是一个用于《Left 4 Dead 2 / 求生之路 2》的外置自动连跳辅助工具。运行工具后，在游戏中按住空格键即可持续发送跳跃输入。
 
 External auto-bhop helper for Left 4 Dead 2. When the tool is running, hold the
