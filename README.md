@@ -77,6 +77,22 @@ can result in bans.
 - Icon shown in the exe file, title bar, Windows taskbar, and system tray.
 - Minimize-to-tray support.
 
+## CFG 连跳助手 / CFG Bhop Helper
+
+如果只想使用 `autoexec.cfg` 方式，不运行外置读内存工具，可以查看：
+
+If you prefer the `autoexec.cfg` approach instead of running the external memory
+helper, see:
+
+```text
+cfg-bhop-helper/
+```
+
+该目录包含 `wait` 指令说明、按住空格连跳 CFG、手动部署指南，以及一个 Go + Win32 一键写入/清理工具。
+
+That directory contains the `wait` command notes, hold-space bhop CFG, manual
+deployment guide, and a Go + Win32 install/cleanup helper.
+
 ## Go Win32 UI
 
 ### 构建 / Build
