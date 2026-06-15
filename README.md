@@ -54,6 +54,7 @@ can result in bans.
   - `mFlags` 偏移。
   - 轮询间隔。
 - 等待游戏、等待模块、读内存、发送按键都在后台 worker 中执行，避免 UI 线程卡死。
+- 使用 `mFlags & FL_ONGROUND` 位判断和跳跃按键状态机，减少漏判和重复刷按键导致的失误。
 - 程序图标内置到 exe 资源中。
 - 图标可显示在 exe 文件、标题栏、Windows 任务栏和系统托盘中。
 - 支持最小化到系统托盘。
@@ -66,6 +67,8 @@ can result in bans.
   - polling interval.
 - Background worker for game/module waiting, memory reads, and key posting, so
   the UI thread stays responsive.
+- `mFlags & FL_ONGROUND` bit checking and a jump-key state machine to reduce
+  missed ground checks and repeated key-message spam.
 - Program icon embedded into the exe resource.
 - Icon shown in the exe file, title bar, Windows taskbar, and system tray.
 - Minimize-to-tray support.

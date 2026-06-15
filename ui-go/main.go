@@ -16,6 +16,7 @@ const (
 
 	wmAppStatus = 0x8001
 	wmTrayIcon  = 0x8002
+	wmAppDebug  = 0x8003
 
 	idProcessCombo = 101
 	idRefreshBtn   = 102
@@ -98,6 +99,8 @@ const (
 	NIF_MESSAGE        = 0x00000001
 	NIF_ICON           = 0x00000002
 	NIF_TIP            = 0x00000004
+
+	FL_ONGROUND = 1 << 0
 )
 
 var (
@@ -213,19 +216,30 @@ type settings struct {
 	mFlagsOffset     uintptr
 	pollInterval     time.Duration
 }
+type runtimeDebug struct {
+	flags        uint32
+	onGround     bool
+	jumpDown     bool
+	readFailures uint64
+	playerPtr    uint32
+}
 type appState struct {
-	hwnd        uintptr
-	controls    map[int]uintptr
-	targets     []targetWindow
-	stop        chan struct{}
-	running     bool
-	mu          sync.Mutex
-	font        uintptr
-	bgBrush     uintptr
-	fieldBrush  uintptr
-	iconBig     uintptr
-	iconSmall   uintptr
-	trayVisible bool
+	hwnd          uintptr
+	controls      map[int]uintptr
+	targets       []targetWindow
+	stop          chan struct{}
+	running       bool
+	mu            sync.Mutex
+	debugMu       sync.Mutex
+	statusText    string
+	debug         runtimeDebug
+	lastDebugPost time.Time
+	font          uintptr
+	bgBrush       uintptr
+	fieldBrush    uintptr
+	iconBig       uintptr
+	iconSmall     uintptr
+	trayVisible   bool
 }
 
 var state = &appState{controls: make(map[int]uintptr)}
@@ -260,7 +274,7 @@ func main() {
 		uintptr(unsafe.Pointer(className)),
 		uintptr(unsafe.Pointer(utf16Ptr(appTitle))),
 		WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX|WS_VISIBLE,
-		200, 120, 620, 430,
+		200, 120, 620, 470,
 		0, 0, hInstance, 0,
 	)
 	state.hwnd = hwnd
@@ -304,6 +318,9 @@ func wndProc(hwnd uintptr, msg uint32, wParam, lParam uintptr) uintptr {
 		return 0
 	case wmAppStatus:
 		setStatus(int(wParam))
+		return 0
+	case wmAppDebug:
+		renderStatus()
 		return 0
 	case wmTrayIcon:
 		switch uint32(lParam) {
@@ -369,7 +386,7 @@ func createUI(hwnd uintptr) {
 
 	state.controls[idStartBtn] = createControl("BUTTON", "启动", WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, 140, 278, 130, 36, hwnd, idStartBtn)
 	state.controls[idStopBtn] = createControl("BUTTON", "停止", WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON, 286, 278, 130, 36, hwnd, idStopBtn)
-	state.controls[idStatusText] = createControl("STATIC", "", WS_CHILD|WS_VISIBLE|SS_LEFT, 26, 338, 548, 42, hwnd, idStatusText)
+	state.controls[idStatusText] = createControl("STATIC", "", WS_CHILD|WS_VISIBLE|SS_LEFT, 26, 334, 548, 88, hwnd, idStatusText)
 }
 
 func loadAppIcon(hInstance uintptr, size int32) uintptr {
@@ -532,6 +549,10 @@ func startWorker() {
 	state.stop = make(chan struct{})
 	stop := state.stop
 	state.running = true
+	state.debugMu.Lock()
+	state.debug = runtimeDebug{}
+	state.lastDebugPost = time.Time{}
+	state.debugMu.Unlock()
 	state.mu.Unlock()
 
 	postStatus(statusScanning)
@@ -596,34 +617,60 @@ func runBhop(cfg settings, stop <-chan struct{}) {
 
 	ticker := time.NewTicker(cfg.pollInterval)
 	defer ticker.Stop()
+	var jumpDown bool
+	var readFailures uint64
 	for {
 		select {
 		case <-stop:
-			postKey(cfg.hwnd, WM_KEYUP)
+			if jumpDown {
+				postKey(cfg.hwnd, WM_KEYUP)
+			}
 			return
 		case <-ticker.C:
 			if !isWindow(cfg.hwnd) {
+				if jumpDown {
+					postKey(cfg.hwnd, WM_KEYUP)
+				}
 				postStatus(statusGameClosed)
 				markStopped()
 				return
 			}
 			key, _, _ := procGetAsyncKeyState.Call(VK_SPACE)
 			if key&0x8000 == 0 {
+				if jumpDown {
+					postKey(cfg.hwnd, WM_KEYUP)
+					jumpDown = false
+					updateRuntimeDebug(runtimeDebug{jumpDown: jumpDown, readFailures: readFailures})
+				}
 				continue
 			}
 			playerPtr, ok := readUint32(hProcess, clientBase+cfg.playerBaseOffset)
 			if !ok || playerPtr == 0 {
+				readFailures++
+				updateRuntimeDebug(runtimeDebug{jumpDown: jumpDown, readFailures: readFailures})
 				continue
 			}
 			flags, ok := readUint32(hProcess, uintptr(playerPtr)+cfg.mFlagsOffset)
 			if !ok {
+				readFailures++
+				updateRuntimeDebug(runtimeDebug{playerPtr: playerPtr, jumpDown: jumpDown, readFailures: readFailures})
 				continue
 			}
-			if onGround(flags) {
-				postKey(cfg.hwnd, WM_KEYUP)
-			} else {
+			grounded := onGround(flags)
+			if grounded && !jumpDown {
 				postKey(cfg.hwnd, WM_KEYDOWN)
+				jumpDown = true
+			} else if !grounded && jumpDown {
+				postKey(cfg.hwnd, WM_KEYUP)
+				jumpDown = false
 			}
+			updateRuntimeDebug(runtimeDebug{
+				flags:        flags,
+				onGround:     grounded,
+				jumpDown:     jumpDown,
+				readFailures: readFailures,
+				playerPtr:    playerPtr,
+			})
 		}
 	}
 }
@@ -670,7 +717,7 @@ func readUint32(process uintptr, addr uintptr) (uint32, bool) {
 }
 
 func onGround(flags uint32) bool {
-	return flags == 0x80 || flags == 0x82 || flags == 0x280 || flags == 0x282
+	return flags&FL_ONGROUND != 0
 }
 
 func postKey(hwnd uintptr, message uint32) {
@@ -695,11 +742,47 @@ func setStatus(code int) {
 		statusGameClosed:       "游戏窗口已关闭，已停止。",
 		statusBadSettings:      "设置无效：请确认进程、偏移和轮询间隔。",
 	}[code]
-	setWindowText(state.controls[idStatusText], text)
+	state.debugMu.Lock()
+	state.statusText = text
+	state.debugMu.Unlock()
+	renderStatus()
 }
 
 func postStatus(code int) {
 	procPostMessageW.Call(state.hwnd, wmAppStatus, uintptr(code), 0)
+}
+
+func updateRuntimeDebug(debug runtimeDebug) {
+	state.debugMu.Lock()
+	state.debug = debug
+	shouldPost := time.Since(state.lastDebugPost) >= 100*time.Millisecond
+	if shouldPost {
+		state.lastDebugPost = time.Now()
+	}
+	state.debugMu.Unlock()
+	if shouldPost {
+		procPostMessageW.Call(state.hwnd, wmAppDebug, 0, 0)
+	}
+}
+
+func renderStatus() {
+	state.debugMu.Lock()
+	status := state.statusText
+	debug := state.debug
+	state.debugMu.Unlock()
+	if status == "" {
+		status = "就绪：选择进程后启动。"
+	}
+	text := fmt.Sprintf(
+		"%s\r\nmFlags=0x%X  onGround=%t  jumpDown=%t\r\nplayer=0x%X  readFailures=%d",
+		status,
+		debug.flags,
+		debug.onGround,
+		debug.jumpDown,
+		debug.playerPtr,
+		debug.readFailures,
+	)
+	setWindowText(state.controls[idStatusText], text)
 }
 
 func send(hwnd uintptr, msg uint32, wParam, lParam uintptr) uintptr {
