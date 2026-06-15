@@ -94,17 +94,42 @@ go build -ldflags "-H=windowsgui" -o l4d2-autobhop-ui.exe .
 
 `app.syso` is committed so the icon resource is linked automatically by Go.
 
+### 单文件便携版 / Portable Single-File Build
+
+推荐发布方式是只发布一个便携版 exe。图标资源已经编译进 exe，运行时不需要把 `assets/`、`app.ico`、`app.syso` 或其他资源文件放在 exe 旁边。
+
+The recommended release format is a single portable exe. The icon resource is
+compiled into the exe, so `assets/`, `app.ico`, `app.syso`, and other resource
+files are not required next to the executable at runtime.
+
+打包便携版：
+
+Build the portable package:
+
+```powershell
+.\scripts\package-portable.ps1
+```
+
+输出文件：
+
+Output:
+
+```text
+dist/l4d2-autobhop-ui.exe
+```
+
 ### 运行 / Run
 
 1. 启动《Left 4 Dead 2 / 求生之路 2》。
-2. 运行 `ui-go/l4d2-autobhop-ui.exe`。
+2. 运行便携版 `dist/l4d2-autobhop-ui.exe`，或运行本地构建出的 `ui-go/l4d2-autobhop-ui.exe`。
 3. 点击进程选择按钮，选择游戏窗口。
 4. 保持默认偏移，或在需要时选择其他 `PlayerBase` 预设。
 5. 点击 Start / 启动。
 6. 在游戏中按住空格键。
 
 1. Launch Left 4 Dead 2.
-2. Run `ui-go/l4d2-autobhop-ui.exe`.
+2. Run the portable `dist/l4d2-autobhop-ui.exe`, or the locally built
+   `ui-go/l4d2-autobhop-ui.exe`.
 3. Click the process selection button and choose the game window.
 4. Keep the default offsets, or choose another `PlayerBase` preset if needed.
 5. Click Start.
