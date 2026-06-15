@@ -6,6 +6,25 @@ spacebar in game to perform continuous jump input.
 This fork adds a native Go + Win32 desktop UI alongside the original C console
 implementation.
 
+## Attribution
+
+This repository is a fork of:
+
+- Original upstream repository: https://github.com/Efah-Dev/Left4Dead2-Autobhop
+
+The original project provides the external auto-bhop logic, memory-reading
+approach, known offsets, and Visual Studio C implementation. This fork keeps
+that original implementation intact and adds a separate Go + Win32 UI wrapper in
+`ui-go/`.
+
+The original README also credits these related projects:
+
+- https://github.com/mads256h/l4d2-autobhop
+- https://github.com/KnifeLemon/Left4Dead2-Autobhop-CSharp
+
+Please refer to the upstream repository and the related projects for the
+original code lineage and background.
+
 ## Warning
 
 Use at your own risk. Do not use this tool on VAC-protected servers. External
@@ -87,12 +106,8 @@ Currently listed `PlayerBase` presets:
 0x7C4644
 ```
 
-## Credits
-
-Original project lineage:
-
-- https://github.com/mads256h/l4d2-autobhop
-- https://github.com/KnifeLemon/Left4Dead2-Autobhop-CSharp
+## Fork Changes
 
 This fork keeps the original external-memory approach and adds a safer,
-responsive Win32 UI wrapper.
+responsive Win32 UI wrapper. The UI code, tray support, icon resource wiring,
+and updated documentation are maintained in this fork.
